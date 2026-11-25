@@ -4,19 +4,23 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const apiBase = "http://localhost:8081/api"
 
 type Game struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Genre string `json:"genre"`
-	Year  int    `json:"year"`
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Genre       string `json:"genre"`
+	Platform    string `json:"platform"`
+	Description string `json:"description"`
+	Year        int    `json:"year"`
 }
 
 type Tournament struct {
@@ -24,6 +28,25 @@ type Tournament struct {
 	GameID int    `json:"game_id"`
 	Name   string `json:"name"`
 	City   string `json:"city"`
+	Date   string `json:"date"`
+}
+
+type GamesPageData struct {
+	Title string
+	Query string
+	Games []Game
+}
+
+type GameDetailPageData struct {
+	Title       string
+	Game        Game
+	Tournaments []Tournament
+}
+
+type ErrorPageData struct {
+	Title   string
+	Code    int
+	Message string
 }
 
 func newClient() *http.Client {
@@ -69,9 +92,26 @@ func FetchTournaments(client *http.Client, gameID int) ([]Tournament, error) {
 	return tournaments, nil
 }
 
+func renderError(w http.ResponseWriter, tmpl *template.Template, code int, msg string) {
+	w.WriteHeader(code)
+	data := ErrorPageData{
+		Title:   fmt.Sprintf("Erreur %d", code),
+		Code:    code,
+		Message: msg,
+	}
+	if err := tmpl.ExecuteTemplate(w, "erreur.html", data); err != nil {
+		http.Error(w, msg, code)
+	}
+}
+
 func main() {
 	port := flag.String("port", "8080", "port d'écoute du serveur HTTP")
 	flag.Parse()
+
+	tmpl, err := template.ParseGlob("templates/*.html")
+	if err != nil {
+		log.Fatal("Erreur chargement templates :", err)
+	}
 
 	client := newClient()
 
@@ -109,40 +149,72 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /jeux", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
 		list, err := FetchGames(client, "/games")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
+			renderError(w, tmpl, http.StatusBadGateway, "L'API des jeux est indisponible pour le moment.")
 			return
 		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+		var filtered []Game
+		qLower := strings.ToLower(strings.TrimSpace(q))
 		for _, g := range list {
-			fmt.Fprintf(w, "#%d - %s (%d)\n", g.ID, g.Name, g.Year)
+			if qLower == "" || strings.Contains(strings.ToLower(g.Name), qLower) {
+				filtered = append(filtered, g)
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data := GamesPageData{
+			Title: "Jeux",
+			Query: q,
+			Games: filtered,
+		}
+		if err := tmpl.ExecuteTemplate(w, "jeux.html", data); err != nil {
+			renderError(w, tmpl, http.StatusInternalServerError, "Erreur d'affichage de la page.")
 		}
 	})
 
 	mux.HandleFunc("GET /jeux/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "ID invalide", http.StatusBadRequest)
+		if err != nil || id <= 0 {
+			renderError(w, tmpl, http.StatusBadRequest, "L'identifiant du jeu doit être un entier positif.")
 			return
 		}
 
 		list, err := FetchGames(client, "/games")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
+			renderError(w, tmpl, http.StatusBadGateway, "L'API des jeux est indisponible pour le moment.")
 			return
 		}
 
-		for _, g := range list {
-			if g.ID == id {
-				tournaments, _ := FetchTournaments(client, g.ID)
-				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-				fmt.Fprintf(w, "%s (%d) - %d tournoi(s)\n", g.Name, g.Year, len(tournaments))
-				return
+		var found *Game
+		for i := range list {
+			if list[i].ID == id {
+				found = &list[i]
+				break
 			}
 		}
+		if found == nil {
+			renderError(w, tmpl, http.StatusNotFound, "Aucun jeu trouvé avec cet identifiant.")
+			return
+		}
 
-		http.Error(w, "Jeu introuvable", http.StatusNotFound)
+		tournaments, err := FetchTournaments(client, found.ID)
+		if err != nil {
+			renderError(w, tmpl, http.StatusBadGateway, "Impossible de récupérer les tournois depuis l'API.")
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data := GameDetailPageData{
+			Title:       found.Name,
+			Game:        *found,
+			Tournaments: tournaments,
+		}
+		if err := tmpl.ExecuteTemplate(w, "jeu_detail.html", data); err != nil {
+			renderError(w, tmpl, http.StatusInternalServerError, "Erreur d'affichage de la fiche jeu.")
+		}
 	})
 
 	fileServer := http.FileServer(http.Dir("static"))

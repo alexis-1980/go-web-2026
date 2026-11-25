@@ -1,0 +1,17 @@
+{{define "header"}}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>{{if .Title}}{{.Title}} - {{end}}GameDex</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/">Accueil</a>
+      <a href="/jeux">Jeux</a>
+    </nav>
+  </header>
+  <main>
+{{end}}
