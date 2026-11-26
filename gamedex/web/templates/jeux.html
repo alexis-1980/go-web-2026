@@ -1,0 +1,49 @@
+{{template "header" .}}
+
+<h1>Catalogue des jeux</h1>
+
+<form id="filter-form" method="GET" action="/jeux">
+  <input id="search-input" type="text" name="q" value="{{.Query}}" placeholder="Rechercher un jeu...">
+  <select id="genre-select" name="genre">
+    <option value="">Tous les genres</option>
+    {{range .Genres}}
+      <option value="{{.}}" {{if eq $.Genre .}}selected{{end}}>{{.}}</option>
+    {{end}}
+  </select>
+  <button type="submit">Filtrer</button>
+</form>
+
+{{if or .Query .Genre}}
+  <p>Vous avez cherché : {{.Query}}{{if .Genre}} ({{.Genre}}){{end}}</p>
+{{end}}
+
+<ul id="games-list">
+  {{range .Games}}
+    <li data-name="{{.Name}}" data-genre="{{.Genre}}">
+      <a href="/jeux/{{.ID}}">{{.Name}}</a> ({{.Year}}){{if .Genre}} — {{.Genre}}{{end}}
+    </li>
+  {{else}}
+    <li>Aucun jeu trouvé.</li>
+  {{end}}
+</ul>
+
+<script>
+const input = document.getElementById("search-input");
+const select = document.getElementById("genre-select");
+const items = Array.from(document.querySelectorAll("#games-list li[data-name]"));
+
+function applyInstantFilter() {
+  const q = input.value.trim().toLowerCase();
+  const genre = select.value.toLowerCase();
+  for (const li of items) {
+    const nameMatch = !q || li.dataset.name.toLowerCase().includes(q);
+    const genreMatch = !genre || li.dataset.genre.toLowerCase() === genre;
+    li.style.display = (nameMatch && genreMatch) ? "" : "none";
+  }
+}
+
+input.addEventListener("input", applyInstantFilter);
+select.addEventListener("change", applyInstantFilter);
+</script>
+
+{{template "footer" .}}

@@ -1,0 +1,62 @@
+{{template "header" .}}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<p><a href="/jeux">← Retour aux jeux</a></p>
+
+<h1>{{.Game.Name}} ({{.Game.Year}})</h1>
+{{if .Game.Genre}}<p>Genre : {{.Game.Genre}}</p>{{end}}
+{{if .Game.Platform}}<p>Plateforme : {{.Game.Platform}}</p>{{end}}
+{{if .Game.Description}}<p>{{.Game.Description}}</p>{{end}}
+
+<h2>Tournois</h2>
+<ul>
+  {{range .Tournaments}}
+    <li class="tournament-item" data-name="{{.Name}}" data-city="{{.City}}" data-date="{{.Date}}">
+      <strong>{{.Name}}</strong> — {{.City}} ({{.Date}})
+    </li>
+  {{else}}
+    <li>Aucun tournoi prévu pour ce jeu.</li>
+  {{end}}
+</ul>
+
+{{if .Tournaments}}
+  <div id="map" style="height: 360px; margin-top: 1rem;"></div>
+  <script>
+    const cityCoords = {
+      "paris": [48.8566, 2.3522],
+      "lyon": [45.7640, 4.8357],
+      "marseille": [43.2965, 5.3698],
+      "tokyo": [35.6762, 139.6503],
+      "los angeles": [34.0522, -118.2437],
+      "new york": [40.7128, -74.0060],
+      "london": [51.5072, -0.1276],
+      "berlin": [52.5200, 13.4050],
+      "seoul": [37.5665, 126.9780]
+    };
+
+    const map = L.map("map").setView([20, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+
+    const bounds = [];
+    document.querySelectorAll(".tournament-item").forEach((el, idx) => {
+      const cityKey = (el.dataset.city || "").trim().toLowerCase();
+      const base = cityCoords[cityKey] || [48.8566, 2.3522];
+      const lat = base[0] + idx * 0.02;
+      const lng = base[1] + idx * 0.02;
+      L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup(`<strong>${el.dataset.name}</strong><br>${el.dataset.city} — ${el.dataset.date}`);
+      bounds.push([lat, lng]);
+    });
+
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+    }
+  </script>
+{{end}}
+
+{{template "footer" .}}

@@ -1,0 +1,23 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 820px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  line-height: 1.5;
+}
+
+header, footer {
+  margin: 1.5rem 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #ddd;
+}
+
+footer {
+  border-bottom: none;
+  border-top: 1px solid #ddd;
+  color: #666;
+}
+
+nav a {
+  margin-right: 1rem;
+}
